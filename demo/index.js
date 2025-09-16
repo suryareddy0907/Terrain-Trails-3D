@@ -1,4 +1,4 @@
-var camera, scene, renderer, clock, player, terrainScene, decoScene, lastOptions, controls = {}, fpsCamera, skyDome, skyLight, sand, water; // jscs:ignore requireLineBreakAfterVariableAssignment
+var camera, scene, renderer, clock, player, terrainScene, decoScene, lastOptions, controls = {}, fpsCamera, skyDome, skyLight, sand, water, roads = [], vehicles = []; // jscs:ignore requireLineBreakAfterVariableAssignment
 var INV_MAX_FPS = 1 / 100,
     frameDelta = 0,
     paused = true,
@@ -48,14 +48,31 @@ function setup() {
 
 function setupThreeJS() {
   scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x868293, 0.0007);
+  // Enhanced fog for better atmospheric perspective
+  scene.fog = new THREE.Fog(0xa0a0b0, 1000, 8000);
 
-  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer = new THREE.WebGLRenderer({ 
+    antialias: true,
+    powerPreference: "high-performance"
+  });
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  
+  // Enable shadows for realistic lighting
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  
+  // Better tone mapping for more realistic colors
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.6;
+  
+  // Enable physically correct lighting
+  renderer.physicallyCorrectLights = true;
+  
   document.body.appendChild(renderer.domElement);
   renderer.domElement.setAttribute('tabindex', -1);
 
-  camera = new THREE.PerspectiveCamera(60, renderer.domElement.width / renderer.domElement.height, 1, 10000);
+  camera = new THREE.PerspectiveCamera(60, renderer.domElement.width / renderer.domElement.height, 1, 20000);
   scene.add(camera);
   camera.position.x = 449;
   camera.position.y = 311;
@@ -68,11 +85,11 @@ function setupThreeJS() {
 }
 
 function setupControls() {
-  fpsCamera = new THREE.PerspectiveCamera(60, renderer.domElement.width / renderer.domElement.height, 1, 10000);
+  fpsCamera = new THREE.PerspectiveCamera(60, renderer.domElement.width / renderer.domElement.height, 1, 20000);
   scene.add(fpsCamera);
   controls = new THREE.FirstPersonControls(fpsCamera, renderer.domElement);
   controls.enabled = false;
-  controls.movementSpeed = 100;
+  controls.movementSpeed = 200;
   controls.lookSpeed = 0.075;
 }
 
@@ -88,17 +105,45 @@ function setupWorld() {
   });
 
   water = new THREE.Mesh(
-    new THREE.PlaneBufferGeometry(16384+1024, 16384+1024, 16, 16),
-    new THREE.MeshLambertMaterial({color: 0x006ba0, transparent: true, opacity: 0.6})
+    new THREE.PlaneBufferGeometry(32768+2048, 32768+2048, 32, 32),
+    new THREE.MeshStandardMaterial({
+      color: 0x006ba0, 
+      transparent: true, 
+      opacity: 0.8,
+      roughness: 0.1,
+      metalness: 0.1
+    })
   );
   water.position.y = -99;
   water.rotation.x = -0.5 * Math.PI;
+  water.receiveShadow = true;
   scene.add(water);
 
-  skyLight = new THREE.DirectionalLight(0xe8bdb0, 1.5);
+  // Add ambient hemisphere light for natural outdoor lighting
+  var hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x8B4513, 0.4);
+  hemisphereLight.position.set(0, 200, 0);
+  scene.add(hemisphereLight);
+
+  // Main sun light with shadows
+  skyLight = new THREE.DirectionalLight(0xe8bdb0, 2.5);
   skyLight.position.set(2950, 2625, -160); // Sun on the sky texture
+  skyLight.castShadow = true;
+  
+  // Configure shadow properties for better quality
+  skyLight.shadow.mapSize.width = 2048;
+  skyLight.shadow.mapSize.height = 2048;
+  skyLight.shadow.camera.near = 1;
+  skyLight.shadow.camera.far = 10000;
+  skyLight.shadow.camera.left = -5000;
+  skyLight.shadow.camera.right = 5000;
+  skyLight.shadow.camera.top = 5000;
+  skyLight.shadow.camera.bottom = -5000;
+  skyLight.shadow.bias = -0.0001;
+  
   scene.add(skyLight);
-  var light = new THREE.DirectionalLight(0xc3eaff, 0.75);
+  
+  // Secondary fill light for softer shadows
+  var light = new THREE.DirectionalLight(0xc3eaff, 0.5);
   light.position.set(-1, -0.5, -1);
   scene.add(light);
 }
@@ -108,8 +153,12 @@ function setupDatGui() {
   heightmapImage.src = 'demo/img/heightmap.png';
   function Settings() {
     var that = this;
-    var mat = new THREE.MeshBasicMaterial({color: 0x5566aa, wireframe: true});
-    var gray = new THREE.MeshPhongMaterial({ color: 0x88aaaa, specular: 0x444455, shininess: 10 });
+    var mat = new THREE.MeshStandardMaterial({color: 0x5566aa, wireframe: true});
+    var gray = new THREE.MeshStandardMaterial({ 
+      color: 0x88aaaa, 
+      roughness: 0.8, 
+      metalness: 0.1 
+    });
     var blend;
     var elevationGraph = document.getElementById('elevation-graph'),
         slopeGraph = document.getElementById('slope-graph'),
@@ -118,24 +167,37 @@ function setupDatGui() {
     loader.load('demo/img/sand1.jpg', function(t1) {
       t1.wrapS = t1.wrapT = THREE.RepeatWrapping;
       sand = new THREE.Mesh(
-        new THREE.PlaneBufferGeometry(16384+1024, 16384+1024, 64, 64),
-        new THREE.MeshLambertMaterial({map: t1})
+        new THREE.PlaneBufferGeometry(32768+2048, 32768+2048, 128, 128),
+        new THREE.MeshStandardMaterial({
+          map: t1,
+          roughness: 0.9,
+          metalness: 0.0
+        })
       );
       sand.position.y = -101;
       sand.rotation.x = -0.5 * Math.PI;
+      sand.receiveShadow = true;
       scene.add(sand);
       loader.load('demo/img/grass1.jpg', function(t2) {
         loader.load('demo/img/stone1.jpg', function(t3) {
           loader.load('demo/img/snow1.jpg', function(t4) {
             // t2.repeat.x = t2.repeat.y = 2;
             blend = THREE.Terrain.generateBlendedMaterial([
-              {texture: t1},
-              {texture: t2, levels: [-80, -35, 20, 50]},
-              {texture: t3, levels: [20, 50, 60, 85]},
-              {texture: t4, glsl: '1.0 - smoothstep(65.0 + smoothstep(-256.0, 256.0, vPosition.x) * 10.0, 80.0, vPosition.z)'},
-              {texture: t3, glsl: 'slope > 0.7853981633974483 ? 0.2 : 1.0 - smoothstep(0.47123889803846897, 0.7853981633974483, slope) + 0.2'}, // between 27 and 45 degrees
-            ]);
+              {texture: t1, roughness: 0.9, metalness: 0.0}, // Sand
+              {texture: t2, levels: [-80, -35, 20, 50], roughness: 0.8, metalness: 0.0}, // Grass
+              {texture: t3, levels: [20, 50, 60, 85], roughness: 0.7, metalness: 0.1}, // Stone
+              {texture: t4, glsl: '1.0 - smoothstep(65.0 + smoothstep(-256.0, 256.0, vPosition.x) * 10.0, 80.0, vPosition.z)', roughness: 0.3, metalness: 0.0}, // Snow
+              {texture: t3, glsl: 'slope > 0.7853981633974483 ? 0.2 : 1.0 - smoothstep(0.47123889803846897, 0.7853981633974483, slope) + 0.2', roughness: 0.6, metalness: 0.05}, // Rocky slopes
+            ], new THREE.MeshStandardMaterial({
+              roughness: 0.8,
+              metalness: 0.05
+            }));
             that.Regenerate();
+            // Generate initial roads and vehicles
+            setTimeout(function() {
+              that['Generate roads']();
+              that['Spawn vehicles']();
+            }, 1000);
           });
         });
       });
@@ -143,11 +205,11 @@ function setupDatGui() {
     this.easing = 'Linear';
     this.heightmap = 'PerlinDiamond';
     this.smoothing = 'None';
-    this.maxHeight = 200;
-    this.segments = 63;
+    this.maxHeight = 300;
+    this.segments = 127;
     this.steps = 1;
     this.turbulent = false;
-    this.size = 1024;
+    this.size = 2048;
     this.sky = true;
     this.texture = 'Blended';
     this.edgeDirection = 'Normal';
@@ -168,6 +230,50 @@ function setupDatGui() {
           that.edgeType === 'Box' ? that.edgeDistance : Math.min(options.xSize, options.ySize) * 0.5 - that.edgeDistance,
           THREE.Terrain[that.edgeCurve]
         );
+      }
+    };
+    
+    this['Generate roads'] = function() {
+      // Clear existing roads
+      roads.forEach(road => {
+        if (road.parent) road.parent.remove(road);
+      });
+      roads = [];
+      
+      if (terrainScene && terrainScene.children[0]) {
+        var newRoads = createRoadSystem(terrainScene.children[0].geometry, lastOptions);
+        newRoads.forEach(road => {
+          terrainScene.add(road);
+        });
+      }
+    };
+    
+    this['Spawn vehicles'] = function() {
+      // Clear existing vehicles
+      vehicles.forEach(vehicle => {
+        if (vehicle.parent) vehicle.parent.remove(vehicle);
+      });
+      vehicles = [];
+      
+      // Create 8-12 vehicles
+      var numVehicles = Math.floor(Math.random() * 5) + 8;
+      for (var i = 0; i < numVehicles; i++) {
+        var vehicleType = Math.random() < 0.7 ? 'car' : 'truck';
+        var vehicle = createVehicle(vehicleType);
+        
+        // Assign random path
+        vehicle.userData.path = Math.random() < 0.6 ? 'horizontal' : 'vertical';
+        vehicle.userData.direction = new THREE.Vector3(
+          Math.random() < 0.5 ? 1 : -1,
+          0,
+          Math.random() < 0.5 ? 1 : -1
+        );
+        
+        // Random starting position
+        vehicle.userData.progress = Math.random();
+        
+        vehicles.push(vehicle);
+        scene.add(vehicle);
       }
     };
     window.rebuild = this.Regenerate = function() {
@@ -191,7 +297,18 @@ function setupDatGui() {
       scene.remove(terrainScene);
       terrainScene = THREE.Terrain(o);
       applySmoothing(that.smoothing, o);
+      
+      // Enable shadows on terrain
+      if (terrainScene.children && terrainScene.children[0]) {
+        terrainScene.children[0].receiveShadow = true;
+        terrainScene.children[0].castShadow = true;
+      }
+      
       scene.add(terrainScene);
+      
+      // Add roads to the terrain
+      that['Generate roads']();
+      
       skyDome.visible = sand.visible = water.visible = that.texture != 'Wireframe';
       var he = document.getElementById('heightmap');
       if (he) {
@@ -312,9 +429,13 @@ function setupDatGui() {
   decoFolder.addColor(settings, 'Light color').onChange(function(val) {
     skyLight.color.set(val);
   });
+  
+  var infrastructureFolder = gui.addFolder('Infrastructure');
+  infrastructureFolder.add(settings, 'Generate roads');
+  infrastructureFolder.add(settings, 'Spawn vehicles');
   var sizeFolder = gui.addFolder('Size');
-  sizeFolder.add(settings, 'size', 1024, 3072).step(256).onFinishChange(settings.Regenerate);
-  sizeFolder.add(settings, 'maxHeight', 2, 300).step(2).onFinishChange(settings.Regenerate);
+  sizeFolder.add(settings, 'size', 1024, 4096).step(256).onFinishChange(settings.Regenerate);
+  sizeFolder.add(settings, 'maxHeight', 2, 500).step(2).onFinishChange(settings.Regenerate);
   sizeFolder.add(settings, 'width:length ratio', 0.2, 2).step(0.05).onFinishChange(settings.Regenerate);
   var edgesFolder = gui.addFolder('Edges');
   edgesFolder.add(settings, 'edgeType', ['Box', 'Radial']).onFinishChange(settings.Regenerate);
@@ -372,6 +493,71 @@ function draw() {
 function update(delta) {
   if (terrainScene) terrainScene.rotation.z = Date.now() * 0.00001;
   if (controls.update) controls.update(delta);
+  
+  // Animate water with gentle waves
+  if (water && water.material.uniforms) {
+    water.material.uniforms.time.value += delta;
+  } else if (water) {
+    // Simple position-based wave animation fallback
+    var time = Date.now() * 0.001;
+    water.position.y = -99 + Math.sin(time * 0.5) * 0.5;
+  }
+  
+  // Update vehicle positions
+  updateVehicles(delta);
+}
+
+function updateVehicles(delta) {
+  vehicles.forEach(vehicle => {
+    if (!vehicle.userData) return;
+    
+    var userData = vehicle.userData;
+    var speed = userData.speed * delta;
+    
+    if (userData.path === 'horizontal') {
+      // Move along horizontal road
+      userData.progress += speed / 2000; // Adjust speed scaling
+      if (userData.progress > 1) {
+        userData.progress = 0;
+        // Randomize direction occasionally
+        if (Math.random() < 0.3) {
+          userData.direction.x *= -1;
+        }
+      }
+      
+      var roadLength = lastOptions ? lastOptions.xSize * 0.8 : 1600;
+      var newX = (userData.progress - 0.5) * roadLength * userData.direction.x;
+      vehicle.position.x = newX;
+      vehicle.position.z = Math.random() * 20 - 10; // Slight road variation
+      
+      // Face movement direction
+      vehicle.rotation.y = userData.direction.x > 0 ? 0 : Math.PI;
+      
+    } else if (userData.path === 'vertical') {
+      // Move along vertical road
+      userData.progress += speed / 2000;
+      if (userData.progress > 1) {
+        userData.progress = 0;
+        if (Math.random() < 0.3) {
+          userData.direction.z *= -1;
+        }
+      }
+      
+      var roadLength = lastOptions ? lastOptions.ySize * 0.6 : 1200;
+      var newZ = (userData.progress - 0.5) * roadLength * userData.direction.z;
+      vehicle.position.z = newZ;
+      vehicle.position.x = Math.random() * 20 - 10;
+      
+      // Face movement direction
+      vehicle.rotation.y = userData.direction.z > 0 ? Math.PI/2 : -Math.PI/2;
+    }
+    
+    // Keep vehicles on ground level (slight elevation above terrain)
+    vehicle.position.y = 5;
+    
+    // Add subtle rotation for realism
+    vehicle.rotation.z = Math.sin(Date.now() * 0.002 + vehicle.id) * 0.02;
+  });
 }
 
 document.addEventListener('keyup', function(event) {
@@ -450,20 +636,38 @@ function applySmoothing(smoothing, o) {
 }
 
 function buildTree() {
-  var green = new THREE.MeshLambertMaterial({ color: 0x2d4c1e });
+  var green = new THREE.MeshStandardMaterial({ 
+    color: 0x2d4c1e,
+    roughness: 0.8,
+    metalness: 0.0
+  });
 
   var c0 = new THREE.Mesh(
     new THREE.CylinderGeometry(2, 2, 12, 6, 1, true),
-    new THREE.MeshLambertMaterial({ color: 0x3d2817 }) // brown
+    new THREE.MeshStandardMaterial({ 
+      color: 0x3d2817, // brown
+      roughness: 0.9,
+      metalness: 0.0
+    })
   );
   c0.position.setY(6);
+  c0.castShadow = true;
+  c0.receiveShadow = true;
 
   var c1 = new THREE.Mesh(new THREE.CylinderGeometry(0, 10, 14, 8), green);
   c1.position.setY(18);
+  c1.castShadow = true;
+  c1.receiveShadow = true;
+  
   var c2 = new THREE.Mesh(new THREE.CylinderGeometry(0, 9, 13, 8), green);
   c2.position.setY(25);
+  c2.castShadow = true;
+  c2.receiveShadow = true;
+  
   var c3 = new THREE.Mesh(new THREE.CylinderGeometry(0, 8, 12, 8), green);
   c3.position.setY(32);
+  c3.castShadow = true;
+  c3.receiveShadow = true;
 
   var s = new THREE.Object3D();
   s.add(c0);
@@ -473,6 +677,172 @@ function buildTree() {
   s.scale.set(5, 1.25, 5);
 
   return s;
+}
+
+function createRoadSystem(terrainGeometry, options) {
+  // Clear existing roads
+  roads.forEach(road => {
+    if (road.parent) road.parent.remove(road);
+  });
+  roads = [];
+
+  if (!terrainGeometry) return;
+
+  // Create road material
+  var roadMaterial = new THREE.MeshStandardMaterial({
+    color: 0x2a2a2a,
+    roughness: 0.8,
+    metalness: 0.1
+  });
+
+  // Create main highway (horizontal)
+  var roadWidth = 120;
+  var roadLength = options.xSize * 0.8;
+  var roadGeometry = new THREE.PlaneGeometry(roadLength, roadWidth, 32, 4);
+  var mainRoad = new THREE.Mesh(roadGeometry, roadMaterial);
+  
+  // Position road to follow terrain
+  var roadVertices = roadGeometry.attributes.position.array;
+  var terrainVertices = terrainGeometry.attributes.position.array;
+  var terrainWidth = options.xSegments + 1;
+  var terrainHeight = options.ySegments + 1;
+  
+  // Sample terrain height along road path
+  for (var i = 0; i < roadVertices.length; i += 3) {
+    var x = roadVertices[i];
+    var z = roadVertices[i + 2];
+    
+    // Convert to terrain coordinates
+    var terrainX = Math.round((x + options.xSize/2) / options.xSize * (terrainWidth - 1));
+    var terrainZ = Math.round((z + options.ySize/2) / options.ySize * (terrainHeight - 1));
+    
+    terrainX = Math.max(0, Math.min(terrainWidth - 1, terrainX));
+    terrainZ = Math.max(0, Math.min(terrainHeight - 1, terrainZ));
+    
+    var terrainIndex = (terrainZ * terrainWidth + terrainX) * 3;
+    var terrainY = terrainVertices[terrainIndex + 1];
+    
+    roadVertices[i + 1] = terrainY + 2; // Slightly above terrain
+  }
+  
+  roadGeometry.attributes.position.needsUpdate = true;
+  mainRoad.rotation.x = -Math.PI / 2;
+  mainRoad.receiveShadow = true;
+  mainRoad.castShadow = true;
+  roads.push(mainRoad);
+  
+  // Create perpendicular road (vertical)
+  var crossRoad = new THREE.Mesh(
+    new THREE.PlaneGeometry(roadWidth, roadLength * 0.6, 4, 32), 
+    roadMaterial
+  );
+  crossRoad.rotation.x = -Math.PI / 2;
+  crossRoad.position.y = 2;
+  crossRoad.receiveShadow = true;
+  crossRoad.castShadow = true;
+  roads.push(crossRoad);
+  
+  return roads;
+}
+
+function createVehicle(type = 'car') {
+  var vehicle = new THREE.Group();
+  
+  if (type === 'car') {
+    // Car body
+    var bodyGeometry = new THREE.BoxGeometry(25, 8, 12);
+    var bodyMaterial = new THREE.MeshStandardMaterial({
+      color: Math.random() * 0xffffff,
+      roughness: 0.2,
+      metalness: 0.8
+    });
+    var body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.position.y = 4;
+    vehicle.add(body);
+    
+    // Car roof
+    var roofGeometry = new THREE.BoxGeometry(20, 6, 10);
+    var roof = new THREE.Mesh(roofGeometry, bodyMaterial);
+    roof.position.set(0, 9, 0);
+    vehicle.add(roof);
+    
+    // Wheels
+    var wheelGeometry = new THREE.CylinderGeometry(3, 3, 2, 8);
+    var wheelMaterial = new THREE.MeshStandardMaterial({
+      color: 0x1a1a1a,
+      roughness: 0.9,
+      metalness: 0.1
+    });
+    
+    var wheelPositions = [
+      [-8, 0, -6], [8, 0, -6], // Front wheels
+      [-8, 0, 6], [8, 0, 6]    // Rear wheels
+    ];
+    
+    wheelPositions.forEach(pos => {
+      var wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+      wheel.position.set(pos[0], pos[1], pos[2]);
+      wheel.rotation.z = Math.PI / 2;
+      vehicle.add(wheel);
+    });
+  } else if (type === 'truck') {
+    // Truck cab
+    var cabGeometry = new THREE.BoxGeometry(15, 12, 12);
+    var cabMaterial = new THREE.MeshStandardMaterial({
+      color: Math.random() * 0xffffff,
+      roughness: 0.3,
+      metalness: 0.7
+    });
+    var cab = new THREE.Mesh(cabGeometry, cabMaterial);
+    cab.position.set(-10, 6, 0);
+    vehicle.add(cab);
+    
+    // Truck bed
+    var bedGeometry = new THREE.BoxGeometry(25, 8, 14);
+    var bed = new THREE.Mesh(bedGeometry, cabMaterial);
+    bed.position.set(8, 4, 0);
+    vehicle.add(bed);
+    
+    // Truck wheels (larger)
+    var wheelGeometry = new THREE.CylinderGeometry(4, 4, 3, 8);
+    var wheelMaterial = new THREE.MeshStandardMaterial({
+      color: 0x1a1a1a,
+      roughness: 0.9,
+      metalness: 0.1
+    });
+    
+    var wheelPositions = [
+      [-15, 0, -8], [-15, 0, 8], // Front wheels
+      [5, 0, -8], [5, 0, 8],     // Middle wheels
+      [15, 0, -8], [15, 0, 8]    // Rear wheels
+    ];
+    
+    wheelPositions.forEach(pos => {
+      var wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+      wheel.position.set(pos[0], pos[1], pos[2]);
+      wheel.rotation.z = Math.PI / 2;
+      vehicle.add(wheel);
+    });
+  }
+  
+  // Add shadows
+  vehicle.traverse(function(child) {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+  
+  // Add vehicle properties for movement
+  vehicle.userData = {
+    speed: type === 'truck' ? 40 : 60,
+    direction: new THREE.Vector3(1, 0, 0),
+    path: 'horizontal', // or 'vertical'
+    progress: Math.random(),
+    type: type
+  };
+  
+  return vehicle;
 }
 
 function customInfluences(g, options) {
