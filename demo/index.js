@@ -1,4 +1,4 @@
-var camera, scene, renderer, clock, player, terrainScene, decoScene, lastOptions, controls = {}, fpsCamera, skyDome, skyLight, sand, water, roads = [], vehicles = []; // jscs:ignore requireLineBreakAfterVariableAssignment
+var camera, scene, renderer, clock, player, terrainScene, decoScene, lastOptions, controls = {}, fpsCamera, skyDome, skyLight, sand, water; // jscs:ignore requireLineBreakAfterVariableAssignment
 var INV_MAX_FPS = 1 / 100,
     frameDelta = 0,
     paused = true,
@@ -48,8 +48,8 @@ function setup() {
 
 function setupThreeJS() {
   scene = new THREE.Scene();
-  // Enhanced fog for better atmospheric perspective
-  scene.fog = new THREE.Fog(0xa0a0b0, 1000, 8000);
+  // Enhanced fog for better atmospheric perspective like in mountain landscapes
+  scene.fog = new THREE.Fog(0xb8c6db, 2000, 12000);
 
   renderer = new THREE.WebGLRenderer({ 
     antialias: true,
@@ -62,12 +62,15 @@ function setupThreeJS() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   
-  // Better tone mapping for more realistic colors
+  // Better tone mapping for more realistic colors like the photos
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.6;
+  renderer.toneMappingExposure = 1.0;
   
   // Enable physically correct lighting
   renderer.physicallyCorrectLights = true;
+  
+  // Enable environment mapping
+  renderer.outputEncoding = THREE.sRGBEncoding;
   
   document.body.appendChild(renderer.domElement);
   renderer.domElement.setAttribute('tabindex', -1);
@@ -109,9 +112,10 @@ function setupWorld() {
     new THREE.MeshStandardMaterial({
       color: 0x006ba0, 
       transparent: true, 
-      opacity: 0.8,
-      roughness: 0.1,
-      metalness: 0.1
+      opacity: 0.7,
+      roughness: 0.05,
+      metalness: 0.1,
+      envMapIntensity: 1.5
     })
   );
   water.position.y = -99;
@@ -119,32 +123,32 @@ function setupWorld() {
   water.receiveShadow = true;
   scene.add(water);
 
-  // Add ambient hemisphere light for natural outdoor lighting
-  var hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x8B4513, 0.4);
+  // Add ambient hemisphere light for natural outdoor lighting (like in mountain landscapes)
+  var hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x8B7355, 0.6);
   hemisphereLight.position.set(0, 200, 0);
   scene.add(hemisphereLight);
 
-  // Main sun light with shadows
-  skyLight = new THREE.DirectionalLight(0xe8bdb0, 2.5);
-  skyLight.position.set(2950, 2625, -160); // Sun on the sky texture
+  // Main sun light with shadows (warmer, more natural like the landscape photos)
+  skyLight = new THREE.DirectionalLight(0xffeaa7, 3.0);
+  skyLight.position.set(2000, 1500, -1000); // More natural sun angle
   skyLight.castShadow = true;
   
   // Configure shadow properties for better quality
   skyLight.shadow.mapSize.width = 2048;
   skyLight.shadow.mapSize.height = 2048;
   skyLight.shadow.camera.near = 1;
-  skyLight.shadow.camera.far = 10000;
-  skyLight.shadow.camera.left = -5000;
-  skyLight.shadow.camera.right = 5000;
-  skyLight.shadow.camera.top = 5000;
-  skyLight.shadow.camera.bottom = -5000;
+  skyLight.shadow.camera.far = 15000;
+  skyLight.shadow.camera.left = -8000;
+  skyLight.shadow.camera.right = 8000;
+  skyLight.shadow.camera.top = 8000;
+  skyLight.shadow.camera.bottom = -8000;
   skyLight.shadow.bias = -0.0001;
   
   scene.add(skyLight);
   
-  // Secondary fill light for softer shadows
-  var light = new THREE.DirectionalLight(0xc3eaff, 0.5);
-  light.position.set(-1, -0.5, -1);
+  // Secondary fill light for softer shadows (cooler blue like sky reflection)
+  var light = new THREE.DirectionalLight(0x74b9ff, 0.3);
+  light.position.set(-1000, 500, 1000);
   scene.add(light);
 }
 
@@ -191,13 +195,8 @@ function setupDatGui() {
             ], new THREE.MeshStandardMaterial({
               roughness: 0.8,
               metalness: 0.05
-            }));
+            }));  
             that.Regenerate();
-            // Generate initial roads and vehicles
-            setTimeout(function() {
-              that['Generate roads']();
-              that['Spawn vehicles']();
-            }, 1000);
           });
         });
       });
@@ -232,50 +231,6 @@ function setupDatGui() {
         );
       }
     };
-    
-    this['Generate roads'] = function() {
-      // Clear existing roads
-      roads.forEach(road => {
-        if (road.parent) road.parent.remove(road);
-      });
-      roads = [];
-      
-      if (terrainScene && terrainScene.children[0]) {
-        var newRoads = createRoadSystem(terrainScene.children[0].geometry, lastOptions);
-        newRoads.forEach(road => {
-          terrainScene.add(road);
-        });
-      }
-    };
-    
-    this['Spawn vehicles'] = function() {
-      // Clear existing vehicles
-      vehicles.forEach(vehicle => {
-        if (vehicle.parent) vehicle.parent.remove(vehicle);
-      });
-      vehicles = [];
-      
-      // Create 8-12 vehicles
-      var numVehicles = Math.floor(Math.random() * 5) + 8;
-      for (var i = 0; i < numVehicles; i++) {
-        var vehicleType = Math.random() < 0.7 ? 'car' : 'truck';
-        var vehicle = createVehicle(vehicleType);
-        
-        // Assign random path
-        vehicle.userData.path = Math.random() < 0.6 ? 'horizontal' : 'vertical';
-        vehicle.userData.direction = new THREE.Vector3(
-          Math.random() < 0.5 ? 1 : -1,
-          0,
-          Math.random() < 0.5 ? 1 : -1
-        );
-        
-        // Random starting position
-        vehicle.userData.progress = Math.random();
-        
-        vehicles.push(vehicle);
-        scene.add(vehicle);
-      }
-    };
     window.rebuild = this.Regenerate = function() {
       var s = parseInt(that.segments, 10),
           h = that.heightmap === 'heightmap.png';
@@ -305,9 +260,6 @@ function setupDatGui() {
       }
       
       scene.add(terrainScene);
-      
-      // Add roads to the terrain
-      that['Generate roads']();
       
       skyDome.visible = sand.visible = water.visible = that.texture != 'Wireframe';
       var he = document.getElementById('heightmap');
@@ -430,9 +382,6 @@ function setupDatGui() {
     skyLight.color.set(val);
   });
   
-  var infrastructureFolder = gui.addFolder('Infrastructure');
-  infrastructureFolder.add(settings, 'Generate roads');
-  infrastructureFolder.add(settings, 'Spawn vehicles');
   var sizeFolder = gui.addFolder('Size');
   sizeFolder.add(settings, 'size', 1024, 4096).step(256).onFinishChange(settings.Regenerate);
   sizeFolder.add(settings, 'maxHeight', 2, 500).step(2).onFinishChange(settings.Regenerate);
@@ -503,61 +452,6 @@ function update(delta) {
     water.position.y = -99 + Math.sin(time * 0.5) * 0.5;
   }
   
-  // Update vehicle positions
-  updateVehicles(delta);
-}
-
-function updateVehicles(delta) {
-  vehicles.forEach(vehicle => {
-    if (!vehicle.userData) return;
-    
-    var userData = vehicle.userData;
-    var speed = userData.speed * delta;
-    
-    if (userData.path === 'horizontal') {
-      // Move along horizontal road
-      userData.progress += speed / 2000; // Adjust speed scaling
-      if (userData.progress > 1) {
-        userData.progress = 0;
-        // Randomize direction occasionally
-        if (Math.random() < 0.3) {
-          userData.direction.x *= -1;
-        }
-      }
-      
-      var roadLength = lastOptions ? lastOptions.xSize * 0.8 : 1600;
-      var newX = (userData.progress - 0.5) * roadLength * userData.direction.x;
-      vehicle.position.x = newX;
-      vehicle.position.z = Math.random() * 20 - 10; // Slight road variation
-      
-      // Face movement direction
-      vehicle.rotation.y = userData.direction.x > 0 ? 0 : Math.PI;
-      
-    } else if (userData.path === 'vertical') {
-      // Move along vertical road
-      userData.progress += speed / 2000;
-      if (userData.progress > 1) {
-        userData.progress = 0;
-        if (Math.random() < 0.3) {
-          userData.direction.z *= -1;
-        }
-      }
-      
-      var roadLength = lastOptions ? lastOptions.ySize * 0.6 : 1200;
-      var newZ = (userData.progress - 0.5) * roadLength * userData.direction.z;
-      vehicle.position.z = newZ;
-      vehicle.position.x = Math.random() * 20 - 10;
-      
-      // Face movement direction
-      vehicle.rotation.y = userData.direction.z > 0 ? Math.PI/2 : -Math.PI/2;
-    }
-    
-    // Keep vehicles on ground level (slight elevation above terrain)
-    vehicle.position.y = 5;
-    
-    // Add subtle rotation for realism
-    vehicle.rotation.z = Math.sin(Date.now() * 0.002 + vehicle.id) * 0.02;
-  });
 }
 
 document.addEventListener('keyup', function(event) {
@@ -677,172 +571,6 @@ function buildTree() {
   s.scale.set(5, 1.25, 5);
 
   return s;
-}
-
-function createRoadSystem(terrainGeometry, options) {
-  // Clear existing roads
-  roads.forEach(road => {
-    if (road.parent) road.parent.remove(road);
-  });
-  roads = [];
-
-  if (!terrainGeometry) return;
-
-  // Create road material
-  var roadMaterial = new THREE.MeshStandardMaterial({
-    color: 0x2a2a2a,
-    roughness: 0.8,
-    metalness: 0.1
-  });
-
-  // Create main highway (horizontal)
-  var roadWidth = 120;
-  var roadLength = options.xSize * 0.8;
-  var roadGeometry = new THREE.PlaneGeometry(roadLength, roadWidth, 32, 4);
-  var mainRoad = new THREE.Mesh(roadGeometry, roadMaterial);
-  
-  // Position road to follow terrain
-  var roadVertices = roadGeometry.attributes.position.array;
-  var terrainVertices = terrainGeometry.attributes.position.array;
-  var terrainWidth = options.xSegments + 1;
-  var terrainHeight = options.ySegments + 1;
-  
-  // Sample terrain height along road path
-  for (var i = 0; i < roadVertices.length; i += 3) {
-    var x = roadVertices[i];
-    var z = roadVertices[i + 2];
-    
-    // Convert to terrain coordinates
-    var terrainX = Math.round((x + options.xSize/2) / options.xSize * (terrainWidth - 1));
-    var terrainZ = Math.round((z + options.ySize/2) / options.ySize * (terrainHeight - 1));
-    
-    terrainX = Math.max(0, Math.min(terrainWidth - 1, terrainX));
-    terrainZ = Math.max(0, Math.min(terrainHeight - 1, terrainZ));
-    
-    var terrainIndex = (terrainZ * terrainWidth + terrainX) * 3;
-    var terrainY = terrainVertices[terrainIndex + 1];
-    
-    roadVertices[i + 1] = terrainY + 2; // Slightly above terrain
-  }
-  
-  roadGeometry.attributes.position.needsUpdate = true;
-  mainRoad.rotation.x = -Math.PI / 2;
-  mainRoad.receiveShadow = true;
-  mainRoad.castShadow = true;
-  roads.push(mainRoad);
-  
-  // Create perpendicular road (vertical)
-  var crossRoad = new THREE.Mesh(
-    new THREE.PlaneGeometry(roadWidth, roadLength * 0.6, 4, 32), 
-    roadMaterial
-  );
-  crossRoad.rotation.x = -Math.PI / 2;
-  crossRoad.position.y = 2;
-  crossRoad.receiveShadow = true;
-  crossRoad.castShadow = true;
-  roads.push(crossRoad);
-  
-  return roads;
-}
-
-function createVehicle(type = 'car') {
-  var vehicle = new THREE.Group();
-  
-  if (type === 'car') {
-    // Car body
-    var bodyGeometry = new THREE.BoxGeometry(25, 8, 12);
-    var bodyMaterial = new THREE.MeshStandardMaterial({
-      color: Math.random() * 0xffffff,
-      roughness: 0.2,
-      metalness: 0.8
-    });
-    var body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-    body.position.y = 4;
-    vehicle.add(body);
-    
-    // Car roof
-    var roofGeometry = new THREE.BoxGeometry(20, 6, 10);
-    var roof = new THREE.Mesh(roofGeometry, bodyMaterial);
-    roof.position.set(0, 9, 0);
-    vehicle.add(roof);
-    
-    // Wheels
-    var wheelGeometry = new THREE.CylinderGeometry(3, 3, 2, 8);
-    var wheelMaterial = new THREE.MeshStandardMaterial({
-      color: 0x1a1a1a,
-      roughness: 0.9,
-      metalness: 0.1
-    });
-    
-    var wheelPositions = [
-      [-8, 0, -6], [8, 0, -6], // Front wheels
-      [-8, 0, 6], [8, 0, 6]    // Rear wheels
-    ];
-    
-    wheelPositions.forEach(pos => {
-      var wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
-      wheel.position.set(pos[0], pos[1], pos[2]);
-      wheel.rotation.z = Math.PI / 2;
-      vehicle.add(wheel);
-    });
-  } else if (type === 'truck') {
-    // Truck cab
-    var cabGeometry = new THREE.BoxGeometry(15, 12, 12);
-    var cabMaterial = new THREE.MeshStandardMaterial({
-      color: Math.random() * 0xffffff,
-      roughness: 0.3,
-      metalness: 0.7
-    });
-    var cab = new THREE.Mesh(cabGeometry, cabMaterial);
-    cab.position.set(-10, 6, 0);
-    vehicle.add(cab);
-    
-    // Truck bed
-    var bedGeometry = new THREE.BoxGeometry(25, 8, 14);
-    var bed = new THREE.Mesh(bedGeometry, cabMaterial);
-    bed.position.set(8, 4, 0);
-    vehicle.add(bed);
-    
-    // Truck wheels (larger)
-    var wheelGeometry = new THREE.CylinderGeometry(4, 4, 3, 8);
-    var wheelMaterial = new THREE.MeshStandardMaterial({
-      color: 0x1a1a1a,
-      roughness: 0.9,
-      metalness: 0.1
-    });
-    
-    var wheelPositions = [
-      [-15, 0, -8], [-15, 0, 8], // Front wheels
-      [5, 0, -8], [5, 0, 8],     // Middle wheels
-      [15, 0, -8], [15, 0, 8]    // Rear wheels
-    ];
-    
-    wheelPositions.forEach(pos => {
-      var wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
-      wheel.position.set(pos[0], pos[1], pos[2]);
-      wheel.rotation.z = Math.PI / 2;
-      vehicle.add(wheel);
-    });
-  }
-  
-  // Add shadows
-  vehicle.traverse(function(child) {
-    if (child.isMesh) {
-      child.castShadow = true;
-      child.receiveShadow = true;
-    }
-  });
-  
-  // Add vehicle properties for movement
-  vehicle.userData = {
-    speed: type === 'truck' ? 40 : 60,
-    direction: new THREE.Vector3(1, 0, 0),
-    path: 'horizontal', // or 'vertical'
-    progress: Math.random(),
-    type: type
-  };
-  
-  return vehicle;
 }
 
 function customInfluences(g, options) {

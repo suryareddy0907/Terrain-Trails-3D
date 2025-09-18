@@ -36,7 +36,6 @@ h3 {
 .collapse {
   text-decoration: none;
 }
-#code,
 #fpscontrols {
   background-color: rgba(16, 16, 16, 0.75);
   border: 1px solid #AAAAAA;
@@ -63,18 +62,7 @@ h3 {
 #show-analytics:not(.visible) {
   pointer-events: none;
 }
-#code {
-  left: 20px;
-  opacity: 1;
-  right: auto;
-}
-#code a {
-  color: #AAAAAA;
-  text-decoration: none;
-}
-#code a:hover {
-  text-decoration: underline;
-}
+
 #heightmap {
   border: 1px solid #AAAAAA;
   height: 128px;
