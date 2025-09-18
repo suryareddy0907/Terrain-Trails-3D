@@ -31,5 +31,8 @@ Brownian motion, arbitrary curves, and various combinations of those.
 
 ## Screenshots
 
-![Screenshot 1](https://raw.githubusercontent.com/IceCreamYou/THREE.Terrain/gh-pages/demo/img/screenshot1.jpg)
-![Screenshot 2](https://raw.githubusercontent.com/IceCreamYou/THREE.Terrain/gh-pages/demo/img/screenshot2.jpg)
+![Screenshot 1](https://github.com/suryareddy0907/Terrain-Trails-3D/blob/gh-pages/demo/img/Screenshot%202025-09-18%20184506.png)
+![Screenshot 2](https://github.com/suryareddy0907/Terrain-Trails-3D/blob/gh-pages/demo/img/Screenshot%202025-09-18%20184540.png)
+![Screenshot 3](https://github.com/suryareddy0907/Terrain-Trails-3D/blob/gh-pages/demo/img/Screenshot%202025-09-18%20184614.png)
+![Screenshot 4](https://github.com/suryareddy0907/Terrain-Trails-3D/blob/gh-pages/demo/img/Screenshot%202025-09-18%20184647.png)
+![Screenshot 5](https://github.com/suryareddy0907/Terrain-Trails-3D/blob/gh-pages/demo/img/Screenshot%202025-09-18%20184708.png)
